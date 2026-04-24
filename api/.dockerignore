@@ -1,0 +1,15 @@
+# Exclure les secrets
+.env
+.env.example
+
+# Exclure la gestion de version
+.git
+.gitignore
+
+# Exclure les fichiers de log et de test de l'hôte
+*.log
+check-status.sh
+README.md
+
+# Exclure les fichiers système
+.DS_Store

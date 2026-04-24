@@ -1,0 +1,9 @@
+# Secrets
+.env
+
+# Systèmes
+.DS_Store
+Thumbs.db
+
+# Docker
+data/
