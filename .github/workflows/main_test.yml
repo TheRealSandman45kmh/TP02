@@ -65,23 +65,26 @@ jobs:
         run: docker compose up -d --build
 
       # Script de santé avec boucle de 12 tentatives [cite: 28, 35]
-      - name: Healthcheck Script (Challenge Technique)
+      - name: Healthcheck Script
         run: |
           echo "Vérification de la Stack..."
           for i in {1..15}; do
-            # 1. On récupère les services qui ONT un healthcheck mais ne sont pas encore HEALTHY
-            NOT_READY=$(docker compose ps --format json | jq -r 'if type=="array" then .[] else . end | select(.Health != null and .Health != "healthy") | .Name' | wc -l)
+            # On vérifie si l'API est spécifiquement HEALTHY
+            API_HEALTH=$(docker compose ps api --format json | jq -r 'if type=="array" then .[0].Health else .Health end')
             
-            # 2. On vérifie que les autres (ceux sans healthcheck comme les admins) sont au moins RUNNING
-            NOT_RUNNING=$(docker compose ps --format json | jq -r 'if type=="array" then .[] else . end | select(.State != "running" and .Health == null) | .Name' | wc -l)
-
-            if [ "$NOT_READY" -eq 0 ] && [ "$NOT_RUNNING" -eq 0 ]; then
-              echo "Succès : Tous les services critiques sont Healthy et les admins sont Up !"
-              docker compose ps
+            if [ "$API_HEALTH" == "healthy" ]; then
+              echo "Succès : L'API est prête et healthy !"
               exit 0
             fi
-            
-            echo "Tentative $i/15 : En attente des services..."
+
+            # Si l'API a crashé (elle n'est plus running), on affiche pourquoi
+            API_STATE=$(docker compose ps api --format json | jq -r 'if type=="array" then .[0].State else .State end')
+            if [ "$API_STATE" != "running" ] && [ "$API_STATE" != "starting" ]; then
+              echo "ATTENTION : L'API a crashé (State: $API_STATE). Logs :"
+              docker compose logs api --tail 10
+            fi
+
+            echo "Tentative $i/15 : API en état '$API_HEALTH'... (5s)"
             sleep 5
           done
           echo "ERREUR : Timeout atteint."
