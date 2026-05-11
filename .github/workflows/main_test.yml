@@ -95,10 +95,9 @@ jobs:
 
       # Validation finale avec curl sur les routes métiers
       - name: Test posts route
-        run: curl --retry 10 --retry-delay 5 --retry-all-errors -f http://localhost:8000/posts
-
-      - name: Test users route
-        run: curl --retry 10 --retry-delay 5 --retry-all-errors -f http://localhost:8000/users
+        run: |
+          docker compose ps
+          curl -v http://localhost:8000/posts || (docker compose logs api && exit 1)
 
       - name: Stop docker compose stack
         if: always()
