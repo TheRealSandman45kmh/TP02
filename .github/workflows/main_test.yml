@@ -93,11 +93,16 @@ jobs:
           docker compose logs db_mysql
           exit 1
 
-      # Validation finale avec curl sur les routes métiers [cite: 29]
-      - name: Validation Fonctionnelle
-        run: |
-          curl -f http://localhost:8000/users
-          curl -f http://localhost:8000/posts
+      # Validation finale avec curl sur les routes métiers
+      - name: Test posts route
+        run: curl --retry 10 --retry-delay 5 --retry-all-errors -f http://localhost:8000/posts
+
+      - name: Test users route
+        run: curl --retry 10 --retry-delay 5 --retry-all-errors -f http://localhost:8000/users
+
+      - name: Stop docker compose stack
+        if: always()
+        run: docker compose down
 
       - name: Afficher les logs en cas d'échec
         if: failure()
