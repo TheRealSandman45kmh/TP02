@@ -67,23 +67,23 @@ jobs:
       # Script de santé avec boucle de 12 tentatives [cite: 28, 35]
       - name: Healthcheck Script (Challenge Technique)
         run: |
-          echo "Vérification de l'état des services..."
-          for i in {1..12}; do
-            # Capture la sortie JSON et vérifie le champ .Health 
-            # On utilise un filtre jq robuste pour éviter l'erreur "Cannot index string with string Health"
-            NOT_HEALTHY=$(docker compose ps --format json | jq -r 'if type=="array" then .[] else . end | select(.Health != "healthy") | .Name' | wc -l)
-            
-            if [ "$NOT_HEALTHY" -eq 0 ]; then
-              echo "Tous les services sont Healthy !"
-              exit 0
-            fi
-            
-            echo "Tentative $i/12 : $NOT_HEALTHY service(s) non prêt(s). Attente de 5s..."
-            sleep 5
-          done
-          echo "Erreur : Timeout atteint, certains services sont restés unhealthy."
-          docker compose ps
-          exit 1
+            echo "Vérification des services critiques..."
+            for i in {1..12}; do
+              # On ne compte que les services qui ONT un healthcheck mais qui ne sont pas encore healthy
+              # Cela ignore admin_mongo et admin_mysql qui n'ont pas de test défini
+              NOT_READY=$(docker compose ps --format json | jq -r 'if type=="array" then .[] else . end | select(.Health != null and .Health != "healthy") | .Name' | wc -l)
+              
+              if [ "$NOT_READY" -eq 0 ]; then
+                echo "Tous les services critiques sont prêts !"
+                exit 0
+              fi
+              
+              echo "Tentative $i/12 : $NOT_READY service(s) en attente... (5s)"
+              sleep 5
+            done
+            echo "Erreur : Timeout atteint."
+            docker compose ps
+            exit 1
 
       # Validation finale avec curl sur les routes métiers [cite: 29]
       - name: Validation Fonctionnelle
