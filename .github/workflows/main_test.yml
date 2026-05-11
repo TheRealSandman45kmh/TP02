@@ -65,30 +65,32 @@ jobs:
         run: docker compose up -d --build
 
       # Script de santé avec boucle de 12 tentatives [cite: 28, 35]
-      - name: Healthcheck Script
+      - name: Wait for healthy containers
         run: |
-          echo "Vérification de la Stack..."
-          for i in {1..15}; do
-            # On vérifie si l'API est spécifiquement HEALTHY
-            API_HEALTH=$(docker compose ps api --format json | jq -r 'if type=="array" then .[0].Health else .Health end')
-            
-            if [ "$API_HEALTH" == "healthy" ]; then
-              echo "Succès : L'API est prête et healthy !"
+          echo "Waiting for main containers to become healthy..."
+
+          for i in {1..24}; do
+            echo "Attempt $i/24"
+
+            docker compose ps api db_mongo db_mysql
+
+            unhealthy=$(docker compose ps api db_mongo db_mysql --format json | jq -r 'select(.Health != "healthy") | .Name + " = " + (.Health // "no-healthcheck")' || true)
+
+            if [ -z "$unhealthy" ]; then
+              echo "Main containers are healthy"
               exit 0
             fi
 
-            # Si l'API a crashé (elle n'est plus running), on affiche pourquoi
-            API_STATE=$(docker compose ps api --format json | jq -r 'if type=="array" then .[0].State else .State end')
-            if [ "$API_STATE" != "running" ] && [ "$API_STATE" != "starting" ]; then
-              echo "ATTENTION : L'API a crashé (State: $API_STATE). Logs :"
-              docker compose logs api --tail 10
-            fi
-
-            echo "Tentative $i/15 : API en état '$API_HEALTH'... (5s)"
+            echo "Not ready yet:"
+            echo "$unhealthy"
             sleep 5
           done
-          echo "ERREUR : Timeout atteint."
+
+          echo "Containers did not become healthy in time"
           docker compose ps
+          docker compose logs api
+          docker compose logs db_mongo
+          docker compose logs db_mysql
           exit 1
 
       # Validation finale avec curl sur les routes métiers [cite: 29]
