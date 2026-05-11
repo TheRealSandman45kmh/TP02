@@ -20,13 +20,13 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build API image
-        run: docker build -t my-api:latest -f ./api/Dockerfile .
+        run: docker build -t my-api:1.0.0 -f ./api/Dockerfile .
 
       - name: Docker Scout Scan API
         uses: docker/scout-action@v1
         with:
           command: cves, recommendations
-          image: my-api:latest
+          image: my-api:1.0.0
           file: ./api/Dockerfile
           only-severities: critical, high
           exit-code: true
@@ -44,13 +44,13 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build MongoDB image
-        run: docker build -t my-mongo:latest -f ./mongo/Dockerfile .
+        run: docker build -t my-mongo:1.0.0 -f ./mongodb/Dockerfile .
 
       - name: Docker Scout Scan MongoDB
         uses: docker/scout-action@v1
         with:
           command: cves, recommendations
           image: my-mongo:latest
-          file: ./mongo/Dockerfile
+          file: ./mongodb/Dockerfile
           only-severities: critical, high
           exit-code: true
