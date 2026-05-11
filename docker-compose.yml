@@ -20,7 +20,7 @@ services:
       start_period: 30s
   
   db_mysql:
-    image: mysql:8.0 # mysql:9.6 n'existe pas encore en version stable, 8.0 est plus sûr
+    image: mysql:8.0
     restart: on-failure
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
@@ -28,8 +28,8 @@ services:
     volumes:
       - ./sqlfiles:/docker-entrypoint-initdb.d
     healthcheck:
-      # mysqladmin ping est plus léger et fiable pour un test de santé
-      test: mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD
+      # Utilisation de CMD-SHELL pour que la variable soit bien interprétée
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
