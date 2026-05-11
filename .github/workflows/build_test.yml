@@ -73,8 +73,20 @@ jobs:
           # MySQL
           MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PWD }}
           MYSQL_USER: ${{ secrets.MYSQL_USER }}
-          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASER }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
           MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+
+      - name: Afficher les logs en cas d'échec
+        if: failure()
+        run: |
+          echo "=== État des conteneurs ==="
+          docker compose ps
+          echo "=== Logs de la base MySQL ==="
+          docker compose logs db_mysql
+          echo "=== Logs de la base MongoDB ==="
+          docker compose logs db_mongo
+          echo "=== Logs de l'API ==="
+          docker compose logs api
           
 
       - name: Wait for services (Healthcheck)
