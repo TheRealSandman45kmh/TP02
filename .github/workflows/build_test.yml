@@ -50,7 +50,7 @@ jobs:
         uses: docker/scout-action@v1
         with:
           command: cves, recommendations
-          image: my-mongo:latest
+          image: my-mongo:1.0.0
           file: ./mongodb/Dockerfile
           only-severities: critical, high
           exit-code: false
