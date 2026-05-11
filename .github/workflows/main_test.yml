@@ -67,23 +67,29 @@ jobs:
       # Script de santé avec boucle de 12 tentatives [cite: 28, 35]
       - name: Healthcheck Script (Challenge Technique)
         run: |
-            echo "Vérification des services critiques..."
-            for i in {1..12}; do
-              # On ne compte que les services qui ONT un healthcheck mais qui ne sont pas encore healthy
-              # Cela ignore admin_mongo et admin_mysql qui n'ont pas de test défini
-              NOT_READY=$(docker compose ps --format json | jq -r 'if type=="array" then .[] else . end | select(.Health != null and .Health != "healthy") | .Name' | wc -l)
-              
-              if [ "$NOT_READY" -eq 0 ]; then
-                echo "Tous les services critiques sont prêts !"
+          echo "Vérification des services..."
+          for i in {1..12}; do
+            # On récupère les noms des services qui ne sont pas healthy
+            # On gère le cas où .Health est null (service sans healthcheck) ou différent de "healthy"
+            FAILED_SERVICES=$(docker compose ps --format json | jq -r 'if type=="array" then .[] else . end | select(.Health != "healthy" and .Health != null) | .Name')
+            NOT_READY=$(echo "$FAILED_SERVICES" | grep -c . || true)
+            
+            if [ "$NOT_READY" -eq 0 ]; then
+              # Vérification de sécurité : s'assurer que l'API est au moins présente et "running"
+              API_STATE=$(docker compose ps api --format json | jq -r 'if type=="array" then .[0].State else .State end')
+              if [ "$API_STATE" == "running" ] || [ "$API_STATE" == "healthy" ]; then
+                echo "Succès : Tous les services critiques sont prêts !"
                 exit 0
               fi
-              
-              echo "Tentative $i/12 : $NOT_READY service(s) en attente... (5s)"
-              sleep 5
-            done
-            echo "Erreur : Timeout atteint."
-            docker compose ps
-            exit 1
+            fi
+            
+            echo "Tentative $i/12 : Services en attente : $FAILED_SERVICES"
+            sleep 5
+          done
+          echo "ERREUR : Timeout atteint."
+          docker compose ps
+          docker compose logs api
+          exit 1
 
       # Validation finale avec curl sur les routes métiers [cite: 29]
       - name: Validation Fonctionnelle
