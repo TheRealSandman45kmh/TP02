@@ -113,6 +113,25 @@ jobs:
 
       - name: Validation Fonctionnelle
         run: |
-          curl -f http://localhost:8000/users [cite: 29]
-          curl -f http://localhost:8000/posts [cite: 29]
+          curl -f http://localhost:8000/users
+          curl -f http://localhost:8000/posts
+          
+  publish:
+    needs: docker-compose
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/my-api:latest
+  
           
