@@ -54,3 +54,41 @@ jobs:
           file: ./mongodb/Dockerfile
           only-severities: critical, high
           exit-code: false
+  docker-compose:
+    needs: [build-and-scan-api, build-and-scan-mongo]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build and Start Stack
+        run: docker compose up -d --build
+        env:
+          # MongoDB
+          MONGODB_INITDB_ROOT_USERNAME: ${{ secrets.MONGODB_INITDB_ROOT_USERNAME }}
+          MONGODB_INITDB_ROOT_PASSWORD: ${{ secrets.MONGODB_INITDB_ROOT_PASSWORD }}
+          MONGO_URL: ${{ secrets.MONGO_URL }}
+          ME_CONFIG_MONGODB_SERVER: ${{ secrets.ME_CONFIG_MONGODB_SERVER }}
+
+          # MySQL
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PWD }}
+          MYSQL_USER: ${{ secrets.MYSQL_USER }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASER }}
+          MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+          
+
+      - name: Wait for services (Healthcheck)
+        run: |
+          echo "Waiting for services to be healthy..."
+          sleep 40
+          docker compose ps
+          
+      - name: Check Status
+        run: |
+          if [ $(docker compose ps | grep -c "unhealthy") -gt 0 ]; then
+            echo "Erreur : Un service est Unhealthy"
+            docker compose logs
+            exit 1
+          fi
+          echo "Bravo : Tout est Healthy !"
+    
