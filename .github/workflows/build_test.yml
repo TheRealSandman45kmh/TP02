@@ -71,7 +71,7 @@ jobs:
           ME_CONFIG_MONGODB_SERVER: ${{ secrets.ME_CONFIG_MONGODB_SERVER }}
 
           # MySQL
-          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PWD }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
           MYSQL_USER: ${{ secrets.MYSQL_USER }}
           MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
           MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
