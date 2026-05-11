@@ -1,0 +1,125 @@
+name: Challenge CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # JOB 1 : Analyse de Sécurité (Build & Scan) [cite: 17]
+  build-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build API image
+        run: docker build -t my-api:1.0.0 -f ./api/Dockerfile .
+
+      # Docker Scout doit bloquer si vulnérabilité "critical" 
+      - name: Docker Scout Scan API
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: my-api:1.0.0
+          only-severities: critical
+          exit-code: true 
+
+      # Trivy scan l'image MySQL mais ne bloque pas la pipeline [cite: 20, 22]
+      - name: Trivy Scan MySQL (Report only)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'mysql:8.0'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+  # JOB 2 : Tests d'Intégration [cite: 23]
+  integration-tests:
+    needs: build-and-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Étape cruciale : Générer le .env à la volée 
+      # Cela garantit que toutes les étapes (compose up, script bash, logs) ont accès aux variables
+      - name: Generate .env file
+        run: |
+          echo "MONGODB_INITDB_ROOT_USERNAME=admin" >> .env
+          echo "MONGODB_INITDB_ROOT_PASSWORD=${{ secrets.MONGODB_INITDB_ROOT_PASSWORD }}" >> .env
+          echo "MONGO_URL=mongodb://admin:${{ secrets.MONGODB_INITDB_ROOT_PASSWORD }}@db_mongo:27017" >> .env
+          echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env
+          echo "MYSQL_DATABASE=ynov_ci" >> .env
+          echo "MYSQL_USER=root" >> .env
+          echo "MYSQL_HOST=db_mysql" >> .env
+          echo "ME_CONFIG_MONGODB_SERVER=db_mongo" >> .env
+
+      - name: Build and Start Stack
+        run: docker compose up -d --build
+
+      # Script de santé avec boucle de 12 tentatives [cite: 28, 35]
+      - name: Healthcheck Script
+        run: |
+          echo "Vérification de la Stack..."
+          for i in {1..15}; do
+            # On vérifie si l'API est spécifiquement HEALTHY
+            API_HEALTH=$(docker compose ps api --format json | jq -r 'if type=="array" then .[0].Health else .Health end')
+            
+            if [ "$API_HEALTH" == "healthy" ]; then
+              echo "Succès : L'API est prête et healthy !"
+              exit 0
+            fi
+
+            # Si l'API a crashé (elle n'est plus running), on affiche pourquoi
+            API_STATE=$(docker compose ps api --format json | jq -r 'if type=="array" then .[0].State else .State end')
+            if [ "$API_STATE" != "running" ] && [ "$API_STATE" != "starting" ]; then
+              echo "ATTENTION : L'API a crashé (State: $API_STATE). Logs :"
+              docker compose logs api --tail 10
+            fi
+
+            echo "Tentative $i/15 : API en état '$API_HEALTH'... (5s)"
+            sleep 5
+          done
+          echo "ERREUR : Timeout atteint."
+          docker compose ps
+          exit 1
+
+      # Validation finale avec curl sur les routes métiers [cite: 29]
+      - name: Validation Fonctionnelle
+        run: |
+          curl -f http://localhost:8000/users
+          curl -f http://localhost:8000/posts
+
+      - name: Afficher les logs en cas d'échec
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs
+
+  # JOB 3 : Publication [cite: 30]
+  publish:
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          
+      - name: Build and Push Final Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/my-api:latest
